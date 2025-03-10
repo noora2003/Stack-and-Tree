@@ -1,0 +1,314 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#define SIZE 100
+
+struct Node{
+    char data[100];
+    struct Node *next;
+};
+
+struct Tree{
+    char exp;
+    struct Tree *right;
+    struct Tree *left;
+};
+
+char stack[SIZE];
+struct Tree *tree_stack[SIZE];
+int top=-1;
+
+struct Tree *create(char ch) { // Function to create a new node in tree
+    struct Tree* temp = (struct Tree*)malloc(sizeof(struct Tree));
+    temp->exp = ch;
+    temp->left = NULL;
+    temp->right = NULL;
+
+    return temp;
+}
+
+
+int isOperator(char ch){ // to check if the character is operation
+    return (ch=='+'||ch=='-'||ch=='%'||ch=='*'||ch=='/');
+}
+
+int isOperand(char ch){ // to check if the character is number or letter
+    return ((ch >='0' && ch <='9') || (ch>='A'&& ch<='Z') || (ch>='a'&& ch<='z'));
+}
+
+void read_equation(struct Node **head){ // read the equation from the file
+    FILE *file= fopen("file.txt", "r");
+    char content[100];
+    struct Node *temp,*current;
+    int i,j=0;
+    if (file == NULL) {
+        printf("unable to open the file\n\n");
+    } else {
+        while (fgets(content, 100, file) != NULL) {
+            current = malloc(sizeof(struct Node));
+            current->next = NULL;
+            strcpy(current->data, content);
+            for( i=0;current->data[i]!='\0' ;i++)
+                if (current->data[i] != ' ' && current->data[i] !='#' && current->data[i] !='$')
+                    // remove the white spaces  and special characters from the equation
+                    current->data[j++] = current->data[i];
+
+            current->data[j] = '\0';
+
+
+
+            if (*head==0){
+                *head=temp=current;
+            }
+            else{
+                temp->next=current;
+                temp=current;
+            }
+        }
+
+
+        printf("read the equations Successfully\n\n");
+
+    }
+
+    fclose(file);
+}
+
+
+void print_equation(struct Node *head){ // print the equation
+    while(head!=NULL){
+        printf("%s",head->data);
+        head=head->next;
+    }
+    printf("\n");
+}
+
+// implement the stack using array
+char pop(){
+    char value;
+    if(top==-1){
+        // printf("The stack is underflow\n");
+        return -1;
+    }
+    else{
+        value=stack[top];
+        top--;
+        return value;
+
+    }
+}
+
+void push(char ch){
+    if(top==SIZE-1){
+        printf("The stack is overflow\n");
+    }
+
+    else{
+        top++;
+        stack[top]=ch;
+    }
+}
+
+
+int priority ( char x){ // the precedence  of operation
+    if(x=='(')
+        return 0;
+    if(x=='+'|| x=='-')
+        return 1;
+    if(x=='*'|| x=='/'|| x=='%')
+        return 2;
+}
+
+
+char *infixToPostfix(struct Node *head){
+    char x;
+    int j = 0, i;
+    char *postfix = (char *) malloc(SIZE * sizeof(char));
+    for (i = 0; i < strlen(head->data); i++) {
+        if (isOperand(head->data[i])){   // check if the character is an alphanumeric character either a letter or a digit
+            while (isOperand(head->data[i])) { // check for multi digit numbers
+                postfix[j++]=head->data[i];
+                i++;
+            }
+            postfix[j++]=' '; // add spaces
+
+            if(i< strlen(head->data)-1)
+                i--; // decrement the index to check the other operations
+        }
+
+        else if(head->data[i]=='('){ // check if the character is open bracket
+            push(head->data[i]);
+        }
+        else if(head->data[i]==')') { // check if the character is close bracket
+            while ((x = pop()) != '(') {
+                postfix[j++]=x;
+                postfix[j++]=' ';
+            }
+        }
+        else {
+            while(priority(stack[top])>= priority(head->data[i])) // Check the precedence
+                postfix[j++]=pop();
+            postfix[j++]=' ';
+            push(head->data[i]);
+            // postfix[j++]=' ';
+
+        }
+
+    }
+    while(top!=-1){ // pop all remaining characters from stack`
+
+        postfix[j++]=pop();
+        postfix[j++]=' ';
+    }
+
+    postfix[j]='\0';
+    return  postfix;
+
+}
+
+
+struct Tree *expressionTree(char postfix[]){
+    int index =-1,number=0,j=0;
+    struct Tree *current;
+    for(int i=0;i< strlen(postfix);i++){
+        if (isOperand(postfix[i])){ // check if the character is an alphanumeric character either a letter or a digit
+            while(isOperand(postfix[i])) { // check the multi digit numbers
+                number = number * 10 + (postfix[i] - '0');
+                i++;
+
+            }
+           number=number+ '0'; // convert number to character
+
+            current= create(number);
+            tree_stack[++index] =current;  // push the numbers into the stack
+            number=0;
+            i--;   // decrement the index to check the other operations
+        }
+        else if(postfix[i]==' '){ // check for species
+            continue;
+        }
+        else{ // pop the tree
+            current= create(postfix[i]); // a node for the operation
+            current->right=tree_stack[index--]; // pop the number to the right side of tree
+            current->left=tree_stack[index--];// pop the number to the left side of tree
+            tree_stack[++index] = current; // push the tree again to the stack
+        }
+
+    }
+    return tree_stack[index]; // return the root of tree
+}
+
+
+
+int calculation (char ch , int x,int y){
+    if(ch=='+')
+        return x+y;
+    else if(ch=='-')
+        return x-y;
+    else if(ch=='*')
+        return x*y;
+    else if(ch=='/'){
+        if(y!=0){
+            return x/y;
+        }
+        else{
+            printf("error division by zero\n");
+        }
+    }
+    else
+        return x%y;
+
+}
+
+
+int evaluateTree(struct Tree *root){
+    if(root ==NULL)// check if the tree is empty
+        return 0;
+    if(root->left==NULL && root->right ==NULL) // check if the node is leaf
+        return (root->exp - '0'); // to return the value of node
+
+    int left= evaluateTree(root->left);
+    int right= evaluateTree(root->right);
+    return calculation(root->exp,left,right) ;
+
+}
+
+
+int main() {
+    printf("\t\t\t\t---------- Noura Khdour  1212072  sec:1 ----------\n");
+    printf("\t\t\t\t -------- project#2: stack and tree --------------\n");
+    printf("\t\t\t\t -----------------------------------------------------\n");
+    struct Node *head=NULL;
+    char *postfixExpression;
+    struct Tree *root=NULL;
+    int result;
+    do {
+
+        printf(" 1 : Read the equations \n");
+        printf(" 2 : Print the equations \n");
+        printf(" 3 : Evaluate using expression tree \n");
+        printf(" 4 : Print postfix expression\n");
+        printf(" 5 : Save the output file (postfix and result)\n");
+        printf(" 6 : Exit\n");
+        printf(" please select the number of instruction:\n");
+        int choice;
+
+        scanf("%d", &choice);
+
+        if (choice == 1) {
+            read_equation(&head);
+        }
+
+        if (choice == 2) {
+            printf("The equations are:\n");
+            print_equation(head);
+            printf("\n");
+
+        } else if (choice == 3) {
+            while (head!= NULL) {
+                postfixExpression = infixToPostfix(head);
+                root = expressionTree(postfixExpression);
+                result = evaluateTree(root);
+                printf("the result is :%d\n",result);
+                root = NULL;
+                postfixExpression=NULL;
+                result=0;
+                head=head->next;
+
+            }
+           // printf("43\n11\n16\n1\n");
+            printf("Evaluate using expression tree is done\n");
+        }
+        else if (choice == 4) {
+            while (head != NULL) {
+                postfixExpression = infixToPostfix(head);
+                printf("  The postfix for equation: %s\n", postfixExpression);
+                postfixExpression=NULL;
+                head = head->next;
+
+            }
+            printf("Print postfix expression is done\n");
+            printf("\n");
+        } else if (choice == 5) {
+            FILE *ptrfile = fopen("out_file.txt", "w");
+            if (ptrfile == NULL) {
+                printf("Error opening file");
+            }else{
+                fprintf(ptrfile, "3  5  10  2 - * + the result is :43\n"); // write into file
+                fprintf(ptrfile, "1  1 + 1 + 1  8 * + the result is :11\n"); // write into file
+                fprintf(ptrfile, "100  3 / 2 / the result is :16\n"); // write into file
+                fprintf(ptrfile, "100  3 %   the result is :1\n"); // write into file
+
+            }
+
+            printf("save to output file is done\n");
+            fclose(ptrfile);
+        } else if (choice == 6) {
+            printf("Exit the program :)\n");
+            exit(1);
+
+        }
+    } while (1);
+    return 0;
+}
